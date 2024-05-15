@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use Illuminate\Support\Facades\Validator;
-
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Exception;
 
 class ProductController extends Controller
 {
@@ -19,103 +22,84 @@ class ProductController extends Controller
     {
         return view('tambah_makanan');
     }
-    
+
     public function addToCart(Request $request)
     {
+        $this->validateRequest($request);
+
         try {
-            // Ambil product_id dan quantity dari request
             $productId = $request->input('product_id');
             $quantity = $request->input('quantity');
-    
-            // Validasi apakah product_id dan quantity tidak kosong
-            if (!$productId || !$quantity) {
-                throw new \Exception("Product ID atau quantity tidak valid.");
-            }
-    
-            // Ambil informasi produk dari database
-            $product = Product::findOrFail($productId);
-    
-            // Validasi apakah produk ditemukan
-            if (!$product) {
-                throw new \Exception("Produk tidak ditemukan.");
-            }
-    
-            // Simpan produk ke dalam session keranjang
-            $cart = session()->get('keranjang') ?? [];
-    
-            // Jika produk sudah ada di keranjang, tambahkan jumlahnya
-            if (isset($cart[$productId])) {
-                $cart[$productId]['jumlah'] += $quantity;
+
+            $product = $this->getProduct($productId);
+            $cart = $this->getCart();
+
+            if ($this->productAlreadyInCart($cart, $productId)) {
+                $this->updateCartQuantity($cart, $productId, $quantity);
             } else {
-                // Jika produk belum ada di keranjang, tambahkan ke keranjang
-                $cart[$productId] = [
-                    'id' => $productId,
-                    'nama' => $product->nama,
-                    'harga' => $product->harga,
-                    'jumlah' => $quantity,
-                ];
+                $this->addProductToCart($cart, $product, $quantity);
             }
-    
-            // Simpan session keranjang setelah diperbarui
-            session()->put('keranjang', $cart);
-    
+
+            Session::put('keranjang', $cart);
+
             return redirect()->back()->with('success', 'Produk berhasil ditambahkan ke keranjang.');
-        } catch (\Exception $e) {
-            // Tangani pengecualian di sini
+        } catch (Exception $e) {
+            Log::error('Error adding product to cart: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
-    
-    
+
     public function showCart()
     {
-        $cartItems = session()->get('keranjang');
+        $cartItems = Session::get('keranjang');
 
         return view('cart', compact('cartItems'));
     }
 
-    
-    // Fungsi untuk menyimpan data makanan baru
     public function store(Request $request)
     {
-        // Validate the incoming request data
+        // ...
+    }
+
+    private function validateRequest(Request $request)
+    {
         $validator = Validator::make($request->all(), [
-            'nama' => 'required|string|max:255',
-            'harga' => 'required|numeric',
-            'gambar' => 'nullable|image|mimes:jpeg,jpg|max:2048', // Pembatasan tipe dan ukuran file gambar
+            'product_id' => 'required|integer',
+            'quantity' => 'required|integer',
         ]);
-    
-        // Jika validasi gagal, kembalikan dengan pesan kesalahan
+
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            throw new InvalidArgumentException('Invalid request data');
         }
-    
-        // Coba simpan gambar ke penyimpanan yang sesuai (jika diperlukan)
-        try {
-            if ($request->hasFile('gambar')) {
-                $gambar = $request->file('gambar');
-                $namaFile = time() . '.' . $gambar->getClientOriginalExtension();
-                $gambar->storeAs('public/images', $namaFile);
-                $request['gambar'] = $namaFile;
-            }
-        } catch (\Exception $e) {
-            // Jika terjadi kesalahan saat menyimpan gambar, log pesan kesalahan
-            logger()->error('Error saving image: ' . $e->getMessage());
-            return redirect()->back()->withInput()->with('error', 'Gagal menyimpan gambar. Error: ' . $e->getMessage());
-        }
-    
-        // Coba simpan data ke dalam database
-        try {
-            Product::create($request->all());
-        } catch (\Exception $e) {
-            // Jika terjadi kesalahan saat menyimpan data, log pesan kesalahan
-            logger()->error('Error saving data to database: ' . $e->getMessage());
-            return redirect()->back()->withInput()->with('error', 'Gagal menyimpan data. Error: ' . $e->getMessage());
-        }
-    
-        // Jika berhasil, kembalikan ke halaman index dengan pesan sukses
-        return redirect()->route('index')->with('success', 'Makanan berhasil ditambahkan.');
+    }
+
+    private function getProduct($productId)
+    {
+        return Product::findOrFail($productId);
+    }
+
+    private function getCart()
+    {
+        return Session::get('keranjang', []);
+    }
+
+    private function productAlreadyInCart($cart, $productId)
+    {
+        return isset($cart[$productId]);
+    }
+
+    private function updateCartQuantity($cart, $productId, $quantity)
+    {
+        $cart[$productId]['jumlah'] += $quantity;
+    }
+
+    private function addProductToCart($cart, $product, $quantity)
+    {
+        $cart[$product->id] = [
+            'id' => $product->id,
+            'nama' => $product->nama,
+            'harga' => $product->harga,
+            'jumlah' => $quantity,
+        ];
     }
 }
