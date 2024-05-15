@@ -19,51 +19,54 @@ class ProductController extends Controller
     {
         return view('tambah_makanan');
     }
-
+    
     public function addToCart(Request $request)
     {
-        $productId = $request->input('product_id');
-        $quantity = $request->input('quantity');
-
-        // Ambil informasi produk dari database
-        $product = Product::findOrFail($productId);
-
-        // Simpan produk ke dalam session keranjang
-        $cart = session()->get('keranjang');
-
-        // Jika keranjang belum ada, buat baru
-        if(!$cart) {
-            $cart = [
-                $productId => [
+        try {
+            // Ambil product_id dan quantity dari request
+            $productId = $request->input('product_id');
+            $quantity = $request->input('quantity');
+    
+            // Validasi apakah product_id dan quantity tidak kosong
+            if (!$productId || !$quantity) {
+                throw new \Exception("Product ID atau quantity tidak valid.");
+            }
+    
+            // Ambil informasi produk dari database
+            $product = Product::findOrFail($productId);
+    
+            // Validasi apakah produk ditemukan
+            if (!$product) {
+                throw new \Exception("Produk tidak ditemukan.");
+            }
+    
+            // Simpan produk ke dalam session keranjang
+            $cart = session()->get('keranjang') ?? [];
+    
+            // Jika produk sudah ada di keranjang, tambahkan jumlahnya
+            if (isset($cart[$productId])) {
+                $cart[$productId]['jumlah'] += $quantity;
+            } else {
+                // Jika produk belum ada di keranjang, tambahkan ke keranjang
+                $cart[$productId] = [
                     'id' => $productId,
                     'nama' => $product->nama,
                     'harga' => $product->harga,
                     'jumlah' => $quantity,
-                ]
-            ];
+                ];
+            }
+    
+            // Simpan session keranjang setelah diperbarui
             session()->put('keranjang', $cart);
+    
             return redirect()->back()->with('success', 'Produk berhasil ditambahkan ke keranjang.');
+        } catch (\Exception $e) {
+            // Tangani pengecualian di sini
+            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
-
-        // Jika produk sudah ada di keranjang, tambahkan jumlahnya
-        if(isset($cart[$productId])) {
-            $cart[$productId]['jumlah'] += $quantity;
-            session()->put('keranjang', $cart);
-            return redirect()->back()->with('success', 'Jumlah produk berhasil diperbarui.');
-        }
-
-        // Jika produk belum ada di keranjang, tambahkan ke keranjang
-        $cart[$productId] = [
-            'id' => $productId,
-            'nama' => $product->nama,
-            'harga' => $product->harga,
-            'jumlah' => $quantity,
-        ];
-        session()->put('keranjang', $cart);
-
-        return redirect()->back()->with('success', 'Produk berhasil ditambahkan ke keranjang.');
     }
-
+    
+    
     public function showCart()
     {
         $cartItems = session()->get('keranjang');

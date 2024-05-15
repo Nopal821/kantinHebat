@@ -25,3 +25,4 @@ Route::get('/tambah_makanan', [ProductController::class, 'create'])->name('produ
 Route::post('products', [ProductController::class, 'store'])->name('products.store');
 Route::get('/', [ProductController::class, 'index'])->name('index');
 Route::post('/cart/add', [ProductController::class, 'addToCart'])->name('cart.add');
+Route::post('/cart/update', [ProductController::class, 'updateCart'])->name('cart.update');
