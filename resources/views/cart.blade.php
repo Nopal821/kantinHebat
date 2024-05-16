@@ -1,5 +1,3 @@
-<!-- di resources/views/cart.blade.php -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,25 +7,26 @@
 </head>
 <body>
     <h1>Keranjang Belanja Anda</h1>
-    <form action="{{ route('cart.update') }}" method="post">
-        @csrf
-        @if(session('cartItems'))
-            <ul>
-                @foreach(session('cartItems') as $id => $item)
-                    <li>{{ $item['nama'] }} - Rp. {{ $item['harga'] }} - Jumlah: 
-                        <input type="number" name="jumlah[{{ $id }}]" value="{{ $item['jumlah'] }}">
-                        <input type="hidden" name="id_barang" value="{{ $id }}">
-                        <button type="submit" name="kurangi_barang">Kurangi</button>
-                        <button type="submit" name="hapus_barang">Hapus</button>
-                    </li>
-                @endforeach
-            </ul>
-            <button type="submit" name="update_keranjang">Update Keranjang</button>
-            <a href="{{ route('checkout') }}">Pembayaran</a>
-        @else
-            <p>Keranjang Anda kosong.</p>
-        @endif
-    </form>
+
+    @if(count($cart_products) > 0)
+        <ul>
+            @foreach($cart_products as $key => $product)
+                <li>
+                    Produk: {{ $product['name'] }} <br>
+                    Harga: Rp. {{ $product['price'] }} <br>
+                    Jumlah: {{ $product['quantity'] }} <br>
+                    Total: Rp. {{ $product['quantity'] * $product['price'] }} <!-- Menggunakan 'price' bukan 'discount_price' -->
+                </li>
+            @endforeach
+        </ul>
+        <p>Total Keranjang: Rp. {{ $cart_total }}</p>
+        <form action="{{ route('checkout') }}" method="get">
+            <button type="submit">Pembayaran</button>
+        </form>
+    @else
+        <p>Keranjang Anda kosong.</p>
+    @endif
+
     <a href="{{ route('index') }}">Kembali ke Daftar Makanan</a>
 </body>
 </html>

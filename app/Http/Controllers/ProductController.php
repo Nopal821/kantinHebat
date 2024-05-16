@@ -7,8 +7,8 @@ use App\Models\Product;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Validation\Exception;
+use InvalidArgumentException;
+use Exception; // Update this import
 
 class ProductController extends Controller
 {
@@ -25,41 +25,65 @@ class ProductController extends Controller
 
     public function addToCart(Request $request)
     {
-        $this->validateRequest($request);
-
-        try {
-            $productId = $request->input('product_id');
-            $quantity = $request->input('quantity');
-
-            $product = $this->getProduct($productId);
-            $cart = $this->getCart();
-
-            if ($this->productAlreadyInCart($cart, $productId)) {
-                $this->updateCartQuantity($cart, $productId, $quantity);
-            } else {
-                $this->addProductToCart($cart, $product, $quantity);
-            }
-
-            Session::put('keranjang', $cart);
-
-            return redirect()->back()->with('success', 'Produk berhasil ditambahkan ke keranjang.');
-        } catch (Exception $e) {
-            Log::error('Error adding product to cart: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        // Validasi request
+        $validator = Validator::make($request->all(), [
+            'product_id' => 'required|exists:products,id',
+            'quantity' => 'required|integer|min:1',
+        ]);
+    
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
         }
+    
+        $productId = $request->input('product_id');
+        $quantity = $request->input('quantity');
+    
+        // Ambil informasi produk dari database
+        $product = Product::findOrFail($productId);
+    
+        // Simpan produk ke dalam session keranjang
+        $cart = session()->get('cart', []);
+    
+        // Jika produk sudah ada di keranjang, tambahkan jumlahnya
+        if (isset($cart[$productId])) {
+            $cart[$productId]['quantity'] += $quantity;
+        } else {
+            // Jika produk belum ada di keranjang, tambahkan ke keranjang
+            $cart[$productId] = [
+                'id' => $productId,
+                'name' => $product->nama, // Tambahkan kunci 'name' dengan nilai nama produk
+                'price' => $product->harga, // Tambahkan kunci 'price' dengan nilai harga produk
+                'quantity' => $quantity,
+            ];
+        }
+    
+        session()->put('cart', $cart);
+    
+        return redirect()->back()->with('success', 'Produk berhasil ditambahkan ke keranjang.');
     }
-
+    
+    
+    public function updateCart(Request $request)
+    {
+        // Implement the logic to update the cart based on the submitted form data
+    }
+    
     public function showCart()
     {
-        $cartItems = Session::get('keranjang');
-
-        return view('cart', compact('cartItems'));
+        $cart_products = collect(request()->session()->get('cart'));
+    
+        $cart_total = 0;
+        if(session('cart')){
+            foreach ($cart_products as $key => $product) {
+                $cart_total+= $product['quantity'] * $product['price']; // Menggunakan 'harga' tanpa diskon
+            }
+        }
+    
+        return view('cart', compact('cart_products', 'cart_total'));
     }
+    
 
-    public function store(Request $request)
-    {
-        // ...
-    }
+    
 
     private function validateRequest(Request $request)
     {
@@ -103,3 +127,4 @@ class ProductController extends Controller
         ];
     }
 }
+
